@@ -1,9 +1,6 @@
 import json
-import os
-import time
-import uuid
 import jwt
-from jwt import ExpiredSignatureError, InvalidTokenError
+from jwt import InvalidTokenError
 from http.server import BaseHTTPRequestHandler
 
 ISSUER = "https://idp.exam.local"
@@ -31,9 +28,8 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            raw_body = self.rfile.read(length)
-            data = json.loads(raw_body.decode("utf-8"))
-            token = data.get("token")
+            request_data = json.loads(self.rfile.read(length).decode("utf-8"))
+            token = request_data.get("token")
 
             if not isinstance(token, str) or not token:
                 self.send_json(401, {"valid": False})
@@ -45,9 +41,7 @@ class handler(BaseHTTPRequestHandler):
                 algorithms=["RS256"],
                 issuer=ISSUER,
                 audience=AUDIENCE,
-                options={
-                    "require": ["exp", "iss", "aud", "sub"]
-                }
+                options={"require": ["exp", "iss", "aud", "sub"]}
             )
 
             self.send_json(200, {
@@ -57,7 +51,7 @@ class handler(BaseHTTPRequestHandler):
                 "aud": claims.get("aud")
             })
 
-        except (ExpiredSignatureError, InvalidTokenError, ValueError, json.JSONDecodeError):
+        except (InvalidTokenError, ValueError, json.JSONDecodeError):
             self.send_json(401, {"valid": False})
         except Exception:
             self.send_json(401, {"valid": False})
