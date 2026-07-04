@@ -1,15 +1,8 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "api/verify.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/verify",
-      "dest": "api/verify.py"
+      "source": "/verify",
+      "destination": "/api/verify"
     }
   ]
 }
