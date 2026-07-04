@@ -1,7 +1,9 @@
-import json
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import jwt
 from jwt import InvalidTokenError
-from http.server import BaseHTTPRequestHandler
+
+app = FastAPI()
 
 ISSUER = "https://idp.exam.local"
 AUDIENCE = "tds-v0wsq391.apps.exam.local"
@@ -16,42 +18,26 @@ SI6iyrYbKR0NEBSqq4XkadEjsCs4F1RncsS4LlgniT7GlkL9Mce3b0wGLs9/7ZIX
 dQIDAQAB
 -----END PUBLIC KEY-----"""
 
-class handler(BaseHTTPRequestHandler):
-    def send_json(self, status, payload):
-        body = json.dumps(payload).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+class VerifyRequest(BaseModel):
+    token: str
 
-    def do_POST(self):
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-            request_data = json.loads(self.rfile.read(length).decode("utf-8"))
-            token = request_data.get("token")
+@app.post("/verify")
+def verify(request: VerifyRequest):
+    try:
+        claims = jwt.decode(
+            request.token,
+            PUBLIC_KEY,
+            algorithms=["RS256"],
+            issuer=ISSUER,
+            audience=AUDIENCE,
+            options={"require": ["exp", "iss", "aud", "sub"]}
+        )
 
-            if not isinstance(token, str) or not token:
-                self.send_json(401, {"valid": False})
-                return
-
-            claims = jwt.decode(
-                token,
-                PUBLIC_KEY,
-                algorithms=["RS256"],
-                issuer=ISSUER,
-                audience=AUDIENCE,
-                options={"require": ["exp", "iss", "aud", "sub"]}
-            )
-
-            self.send_json(200, {
-                "valid": True,
-                "email": claims.get("email"),
-                "sub": claims.get("sub"),
-                "aud": claims.get("aud")
-            })
-
-        except (InvalidTokenError, ValueError, json.JSONDecodeError):
-            self.send_json(401, {"valid": False})
-        except Exception:
-            self.send_json(401, {"valid": False})
+        return {
+            "valid": True,
+            "email": claims.get("email"),
+            "sub": claims.get("sub"),
+            "aud": claims.get("aud")
+        }
+    except InvalidTokenError:
+        raise HTTPException(status_code=401, detail={"valid": False})
